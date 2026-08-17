@@ -1,0 +1,70 @@
+ARG BASE_IMAGE=quay.io/fedora/fedora-bootc:44
+FROM ${BASE_IMAGE}
+
+# Keep the image focused: no weak deps, no docs, no heavyweight desktops.
+RUN dnf -y upgrade \
+    --setopt=install_weak_deps=False \
+    --setopt=tsflags=nodocs \
+    --skip-unavailable \
+ && dnf -y install \
+    --setopt=install_weak_deps=False \
+    --setopt=tsflags=nodocs \
+    --skip-unavailable \
+    NetworkManager sudo systemd-resolved \
+    foot-terminfo ghostty-terminfo kitty-terminfo \
+    bash-completion vim-minimal nano less tmux htop git \
+    ripgrep fd-find bat curl wget jq zsh \
+ && dnf -y install \
+    --setopt=install_weak_deps=False \
+    --setopt=tsflags=nodocs \
+    --skip-unavailable \
+    bind-utils nmap-ncat rsync tcpdump \
+    pciutils usbutils lsof smartmontools nvme-cli hdparm memtester \
+    podman tar unzip python3 \
+ && dnf -y install \
+    --setopt=install_weak_deps=False \
+    --setopt=tsflags=nodocs \
+    --skip-unavailable \
+    util-linux gdisk parted gparted \
+    btrfs-progs e2fsprogs xfsprogs dosfstools \
+    lvm2 mdadm cryptsetup gsmartcontrol ddrescue testdisk \
+ && dnf -y install \
+    --setopt=install_weak_deps=False \
+    --setopt=tsflags=nodocs \
+    --skip-unavailable \
+    dracut-live dracut-network squashfs-tools \
+    dnsmasq tftp-server rsyslog syslinux syslinux-tftpboot \
+ && dnf -y install \
+    --setopt=install_weak_deps=False \
+    --setopt=tsflags=nodocs \
+    --skip-unavailable \
+    sway-config-fedora sway swaybg foot \
+    xorg-x11-server-Xwayland mesa-dri-drivers xorg-x11-drv-libinput \
+ && rm -rf /var/cache/dnf /var/log/dnf* /var/log/hawkey.log
+
+COPY rootfs/ /
+
+RUN systemctl set-default multi-user.target \
+ && systemctl enable NetworkManager.service rsyslog.service getty@tty1.service \
+ && useradd -m -G wheel liveuser \
+ && passwd -d liveuser \
+ && install -m 0440 /usr/local/share/fedora-rescue/90-liveuser-sudo /etc/sudoers.d/90-liveuser \
+ && install -d -o liveuser -g liveuser /home/liveuser/.config/sway \
+ && install -m 0644 -o liveuser -g liveuser /usr/local/share/fedora-rescue/sway-config /home/liveuser/.config/sway/config \
+ && install -m 0644 -o liveuser -g liveuser /usr/local/share/fedora-rescue/bash_profile /home/liveuser/.bash_profile \
+ && install -m 0644 -o liveuser -g liveuser /usr/local/share/fedora-rescue/bashrc /home/liveuser/.bashrc \
+ && install -d /srv/tftp /srv/http /srv/tftp/pxelinux.cfg \
+ && install -m 0644 /usr/local/share/fedora-rescue/pxelinux-default /srv/tftp/pxelinux.cfg/default
+
+RUN chmod 0755 /usr/local/bin/fed-toolbox /usr/local/bin/fed-start-sway
+
+# bootc-image-builder reads this initramfs, not /boot/initramfs-*.img.
+RUN set -eux; \
+    kver=$(cd /usr/lib/modules && echo *); \
+    env DRACUT_NO_XATTR=1 dracut -vf "/usr/lib/modules/${kver}/initramfs.img" "${kver}"
+
+RUN systemctl mask bootc-generic-growpart.service bootc-publish-rhsm-facts.service
+
+RUN cp -n /usr/share/ipxe/* /srv/tftp/ 2>/dev/null || true
+RUN cp -n /usr/share/syslinux/pxelinux.0 /srv/tftp/ 2>/dev/null || true
+RUN cp -n /usr/share/syslinux/ldlinux.c32 /usr/share/syslinux/libcom32.c32 /usr/share/syslinux/menu.c32 /srv/tftp/ 2>/dev/null || true

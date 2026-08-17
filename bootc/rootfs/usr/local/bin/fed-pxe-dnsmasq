@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TFTP_ROOT=${TFTP_ROOT:-/srv/tftp}
+PXE_FILE=${PXE_FILE:-pxelinux.0}
+IP_RANGE=${IP_RANGE:-192.168.88.50,192.168.88.150,12h}
+INTF=${INTF:-eth0}
+CONF=$(mktemp)
+trap 'rm -f "$CONF"' EXIT
+
+cat >"$CONF" <<CFG
+port=0
+interface=${INTF}
+bind-interfaces
+dhcp-range=${IP_RANGE}
+enable-tftp
+tftp-root=${TFTP_ROOT}
+dhcp-boot=${PXE_FILE}
+log-dhcp
+CFG
+
+echo "Starting dnsmasq PXE/TFTP (interface=$INTF root=$TFTP_ROOT boot=$PXE_FILE range=$IP_RANGE)"
+exec dnsmasq --conf-file="$CONF"

@@ -1,0 +1,20 @@
+# Rendered by customize-pxe-grub.sh after image-builder creates the PXE tree.
+# Keep the @...@ placeholders; the generated kernel arguments include the
+# deployment-specific ostree path required by bootc PXE artifacts.
+set timeout=60
+set default=0
+
+# Show the menu on both the local display and an x86 COM1 serial console.
+serial --unit=0 --speed=115200 --word=8 --parity=no --stop=1
+terminal_input --append serial
+terminal_output --append serial
+
+menuentry 'Fedora Rescue - HTTP rootfs' {
+    linux /vmlinuz @HTTP_NORMAL_CMDLINE@
+    initrd /initrd.img
+}
+
+menuentry 'Fedora Rescue - HTTP rootfs (serial console)' {
+    linux /vmlinuz @HTTP_SERIAL_CMDLINE@
+    initrd /initrd.img
+}

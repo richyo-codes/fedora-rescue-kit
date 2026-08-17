@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+import argparse
+import socket
+import struct
+
+parser = argparse.ArgumentParser(description="Minimal DNS A-record responder")
+parser.add_argument("--name", required=True, help="FQDN to answer")
+parser.add_argument("--addr", required=True, help="IPv4 address to return")
+parser.add_argument("--port", type=int, default=53)
+args = parser.parse_args()
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.bind(("", args.port))
+target = args.name.rstrip(".").lower()
+ipbytes = socket.inet_aton(args.addr)
+print(f"DNS serving {target} -> {args.addr} on 0.0.0.0:{args.port}")
+
+while True:
+    data, addr = sock.recvfrom(512)
+    if len(data) < 12:
+        continue
+
+    tid = data[:2]
+    qdcount = struct.unpack("!H", data[4:6])[0]
+    idx = 12
+    labels = []
+
+    while idx < len(data) and data[idx]:
+        label_len = data[idx]
+        idx += 1
+        labels.append(data[idx:idx + label_len].decode(errors="ignore"))
+        idx += label_len
+
+    qname = ".".join(labels).lower()
+    idx += 1
+    qtype_qclass = data[idx:idx + 4]
+
+    if qdcount != 1 or qname != target:
+        continue
+
+    header = tid + b"\x81\x80" + data[4:6] + b"\x00\x01\x00\x00\x00\x00"
+    answer = b"\xc0\x0c" + qtype_qclass + b"\x00\x01\x00\x01\x00\x00\x00\x3c\x00\x04" + ipbytes
+    sock.sendto(header + data[12:idx + 4] + answer, addr)

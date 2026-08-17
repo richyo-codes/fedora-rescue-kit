@@ -1,0 +1,7 @@
+DEFAULT ipxe
+PROMPT 0
+TIMEOUT 30
+
+LABEL ipxe
+  KERNEL ipxe.pxe
+  APPEND dhcp

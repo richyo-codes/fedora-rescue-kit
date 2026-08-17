@@ -1,0 +1,5 @@
+include /etc/sway/config
+
+exec_always --no-startup-id "sleep 1; gparted"
+bindsym $mod+Return exec foot
+bindsym $mod+Shift+e exec "systemctl poweroff"

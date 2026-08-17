@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+import argparse
+import socket
+
+parser = argparse.ArgumentParser(description="Simple UDP syslog listener")
+parser.add_argument("-p", "--port", type=int, default=514)
+args = parser.parse_args()
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.bind(("", args.port))
+print(f"Syslog listening on 0.0.0.0:{args.port}")
+
+while True:
+    data, addr = sock.recvfrom(2048)
+    print(f"{addr[0]}: {data.decode(errors='replace').rstrip()}")

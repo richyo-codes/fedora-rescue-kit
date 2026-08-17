@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+IMAGE=${FED_TOOLBOX_IMAGE:-registry.fedoraproject.org/fedora:44}
+NAME=${FED_TOOLBOX_NAME:-fedora-rescue-toolbox-${USER:-user}}
+RESET=no
+declare -a CREATE_OPTIONS=()
+
+usage() {
+  cat <<'EOF'
+Usage: fed-toolbox [OPTIONS] [--] [COMMAND ...]
+
+Create or reuse a named rootless Fedora container for temporary packages.
+Container changes persist across reboots when the current user's home is on the
+FEDORA-RESCUE-HOME persistence filesystem.
+
+Options:
+  --image IMAGE       Container image (default: registry.fedoraproject.org/fedora:44)
+  --name NAME         Container name
+  --host-network      Use the host network namespace (creation only)
+  --device PATH       Pass a device into the container (creation only; repeatable)
+  --reset             Remove and recreate the named container
+  -h, --help          Show this help
+
+Examples:
+  fed-toolbox
+  fed-toolbox -- dnf install -y btop
+  fed-toolbox --device /dev/bus/usb -- lsusb
+  fed-toolbox --reset
+EOF
+}
+
+while (($#)); do
+  case "$1" in
+    --image)
+      (($# >= 2)) || { echo "--image requires a value" >&2; exit 2; }
+      IMAGE=$2
+      shift 2
+      ;;
+    --name)
+      (($# >= 2)) || { echo "--name requires a value" >&2; exit 2; }
+      NAME=$2
+      shift 2
+      ;;
+    --host-network)
+      CREATE_OPTIONS+=(--network host)
+      shift
+      ;;
+    --device)
+      (($# >= 2)) || { echo "--device requires a path" >&2; exit 2; }
+      CREATE_OPTIONS+=(--device "$2")
+      shift 2
+      ;;
+    --reset)
+      RESET=yes
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+command -v podman >/dev/null 2>&1 || {
+  echo "podman is not installed." >&2
+  exit 1
+}
+
+podman info >/dev/null || {
+  echo "Rootless Podman is not available for ${USER:-this user}." >&2
+  echo "Verify that the user has subordinate UID/GID ranges and retry." >&2
+  exit 1
+}
+
+if [[ $RESET == yes ]] && podman container exists "$NAME"; then
+  podman rm -f "$NAME"
+fi
+
+if ! podman container exists "$NAME"; then
+  podman pull "$IMAGE"
+  podman run -d --name "$NAME" --label io.fedora-rescue.toolbox=1 \
+    "${CREATE_OPTIONS[@]}" "$IMAGE" sleep infinity
+elif ((${#CREATE_OPTIONS[@]})); then
+  echo "--host-network and --device apply only when creating a container." >&2
+  echo "Run fed-toolbox --reset with the desired creation options." >&2
+  exit 2
+fi
+
+if [[ $(podman inspect --format '{{.State.Running}}' "$NAME") != true ]]; then
+  podman start "$NAME" >/dev/null
+fi
+
+if (($# == 0)); then
+  if [[ -t 0 && -t 1 ]]; then
+    exec podman exec -it "$NAME" /bin/bash
+  fi
+  exec podman exec "$NAME" /bin/bash
+fi
+
+if [[ -t 0 && -t 1 ]]; then
+  exec podman exec -it "$NAME" "$@"
+fi
+exec podman exec "$NAME" "$@"

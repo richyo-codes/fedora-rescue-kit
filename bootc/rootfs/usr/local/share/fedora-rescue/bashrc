@@ -1,0 +1,10 @@
+# Keep Fedora's interactive-shell defaults, then add rescue-shell integrations.
+if [[ -f /etc/bashrc ]]; then
+  source /etc/bashrc
+fi
+
+# A client may advertise a terminal type not present in an older image.
+if [[ -n ${TERM:-} ]] && command -v infocmp >/dev/null 2>&1 \
+    && ! infocmp "$TERM" >/dev/null 2>&1; then
+  export TERM=xterm-256color
+fi

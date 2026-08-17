@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+import argparse
+import http.server
+import os
+import socketserver
+
+parser = argparse.ArgumentParser(description="Simple HTTP server")
+parser.add_argument("-p", "--port", type=int, default=8000)
+parser.add_argument("-d", "--directory", default="/srv/http")
+args = parser.parse_args()
+
+os.chdir(args.directory)
+with socketserver.TCPServer(("", args.port), http.server.SimpleHTTPRequestHandler) as httpd:
+    print(f"Serving HTTP on 0.0.0.0:{args.port} from {os.getcwd()}")
+    httpd.serve_forever()

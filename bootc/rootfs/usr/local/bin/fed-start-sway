@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+# Override this per machine when the default DRM card is not the display GPU.
+CARD_SYMLINK="${START_SWAY_DRM_CARD:-/dev/dri/by-path/pci-0000:0e:00.0-card}"
+
+if [ -e "$CARD_SYMLINK" ]; then
+  REAL_CARD="$(readlink -f "$CARD_SYMLINK")"
+  if [ -e "$REAL_CARD" ]; then
+    export WLR_DRM_DEVICES="$REAL_CARD"
+  fi
+fi
+
+export WLR_RENDERER="${WLR_RENDERER:-vulkan}"
+
+exec /usr/bin/start-sway -c "$HOME/.config/sway/config"

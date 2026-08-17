@@ -1,0 +1,11 @@
+# Generated build outputs and local artifact-builder state
+bootc-out/
+
+# Large local media and disk artifacts
+*.iso
+*.img
+*.qcow2
+*.raw
+
+# Local build logs
+*.log
